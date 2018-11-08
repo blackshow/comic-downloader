@@ -13,22 +13,17 @@ import lombok.Data;
  */
 @Data
 @Entity
-@Table(name = "catalog")
-public class Catalog implements Serializable {
+@Table(name = "Chapter")
+public class Chapter implements Serializable {
+
     @Id
     @GeneratedValue
     private Long id;
-
-    @Column(nullable = false, length = 50)
-    private String name;
 
     @Column(nullable = false, columnDefinition = "text")
     private String url;
 
     @Column(nullable = false, length = 20)
-    private Long comicId;
-
-    @Column(nullable = false, length = 1)
-    private Boolean lastRead = false;
+    private Long catalogId;
 
 }

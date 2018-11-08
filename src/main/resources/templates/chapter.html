@@ -10,11 +10,17 @@
 </head>
 <body>
 <div class="container text-center well">
+  <span th:if="${error}" th:text="${error}"></span>
   <div class="row">
-    <div th:each="catalog:${catalogs}" class="col-md-3">
-      <a th:href="@{'/chapter/'+ ${catalog.id}}" th:text="${catalog.name}" th:data="${catalog.lastRead}">
-      </a>
-    </div>
+    <a th:if="${prev}" th:href="@{'/chapter/'+ ${prev.id}}" th:text="上一页"></a>
+    <a th:if="${next}" th:href="@{'/chapter/'+ ${next.id}}" th:text="下一页"></a>
+  </div>
+  <div class="row">
+    <img th:unless="${error}" th:each="chapter:${chapters}" th:src="@{${chapter.url}}" class="img-responsive">
+  </div>
+  <div class="row">
+    <a th:if="${prev}" th:href="@{'/chapter/'+ ${prev.id}}" th:text="上一页"></a>
+    <a th:if="${next}" th:href="@{'/chapter/'+ ${next.id}}" th:text="下一页"></a>
   </div>
 </div>
 </body>
