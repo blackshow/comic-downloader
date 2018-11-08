@@ -1,0 +1,46 @@
+<!DOCTYPE HTML>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta content="text/html;charset=UTF-8"/>
+  <meta name="viewport"
+        content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <meta name="referrer" content="no-referrer"/>
+  <link href="https://cdn.bootcss.com/twitter-bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<div class="container text-center well">
+  <span th:if="${error}" th:text="${error}"></span>
+  <span th:if="${error}" th:id="countdown" th:text="页面将在5秒后刷新"></span>
+  <div class="row">
+    <div th:unless="${error}" th:each="comic:${comics}" class="col-md-3">
+      <div class="thumbnail">
+        <a th:href="@{'/book/'+ ${comic.name}}">
+          <img th:src="@{${comic.thumbnail}}" th:width="${comic.thumbWidth}" th:height="${comic.thumbHeight}">
+        </a>
+        <div class="caption">
+          <a th:href="@{'/book/'+ ${comic.name}}">
+            <h3 th:text="${comic.name}"></h3>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+<script th:inline="javascript">
+  /*<![CDATA[*/
+  var i = 5;
+  var error = [[${error}]];
+  if (error) {
+    setInterval(refresh, 1000);
+  }
+
+  function refresh() {
+    i === 0 ? location.href = "/" : i--;
+      document.getElementById("countdown").innerHTML = "页面将在" + i + "秒后刷新";
+  }
+
+  /*]]>*/
+</script>
+</html>
