@@ -62,29 +62,38 @@ public class IndexController {
         COMICS.forEach((name, url) -> {
             final Runnable task = () -> {
                 final Optional<Comic> comicOptional = comicDao.findByName(name);
-                if (comicOptional.isPresent()) {
-                    return;
-                }
+                Comic comic;
                 try (WebClient webClient = getWebClient()) {
-                    HtmlPage bookPage = webClient.getPage(url);
-                    webClient.waitForBackgroundJavaScript(TIMEOUT);
-                    Document book = Jsoup.parse(bookPage.asXml());
-                    final Element coverImg = book.select("p.cover>img").first();
-                    Comic comic = comicOptional.orElse(new Comic());
-                    comic.setName(name);
-                    comic.setUrl(url);
-                    comic.setThumbnail(coverImg.attr("src"));
-                    comic = comicDao.save(comic);
+                    if (!comicOptional.isPresent()) {
+                        comic = comicOptional.orElse(new Comic());
+                        HtmlPage bookPage = webClient.getPage(url);
+                        webClient.waitForBackgroundJavaScript(TIMEOUT);
+                        Document book = Jsoup.parse(bookPage.asXml());
+                        final Element coverImg = book.select("p.cover>img").first();
+                        comic.setName(name);
+                        comic.setUrl(url);
+                        comic.setThumbnail(coverImg.attr("src"));
+                        comic = comicDao.save(comic);
+                    } else {
+                        comic = comicOptional.get();
+                    }
                     HtmlPage catalogPage = webClient.getPage(comic.getUrl());
                     webClient.waitForBackgroundJavaScript(TIMEOUT);
                     Document catalog = Jsoup.parse(catalogPage.asXml());
                     Element ul = catalog.getElementById("chapter-list-1");
                     List<Catalog> catalogs = catalogDao.findAllByComicId(comic.getId());
                     if (CollectionUtils.isEmpty(catalogs) || catalogs.size() != ul.children().size()) {
-                        for (Element li : ul.children()) {
+                        List<String> catalogUrls = catalogs.stream().map(Catalog::getName)
+                            .collect(Collectors.toList());
+                        for (int i = 0; i < ul.children().size(); i++) {
+                            Element li = ul.child(i);
+                            String catalogUrl = BASE_URL + li.select("a").first().attr("href");
+                            if (catalogUrls.contains(catalogUrl)) {
+                                continue;
+                            }
                             Catalog temp = new Catalog();
                             temp.setName(li.text());
-                            temp.setUrl(BASE_URL + li.select("a").first().attr("href"));
+                            temp.setUrl(catalogUrl);
                             temp.setComicId(comic.getId());
                             temp = catalogDao.save(temp);
                             HtmlPage chapterPage = webClient.getPage(temp.getUrl());
@@ -110,9 +119,7 @@ public class IndexController {
                                     tempChapter.setCatalogId(temp.getId());
                                     chapterDao.save(tempChapter);
                                 }
-
                             }
-
                         }
                     }
                 } catch (IOException ignored) {
@@ -137,7 +144,6 @@ public class IndexController {
     @RequestMapping("/")
     public String index(Model model) {
         List<Comic> allComics = comicDao.findAll();
-        System.out.println(comicsConfig);
         if (allComics.size() < COMICS.size()) {
             model.addAttribute("error", "还没读取完漫画列表，");
             return "index";
