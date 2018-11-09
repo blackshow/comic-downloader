@@ -46,17 +46,6 @@ public class IndexController {
 
     private final ComicsConfig comicsConfig;
 
-    static {
-//        COMICS.put("我为苍生", "http://www.gufengmh.com/manhua/woweicangsheng/");
-//        COMICS.put("戒魔人", "http://www.gufengmh.com/manhua/jiemoren/");
-//        COMICS.put("绝品透视", "http://www.gufengmh.com/manhua/juepintoushi/");
-//        COMICS.put("极道天使", "http://www.gufengmh.com/manhua/jidaotianshi/");
-//        COMICS.put("我的天劫女友", "http://www.gufengmh.com/manhua/wodetianjienvyou/");
-//        COMICS.put("红雾", "http://www.gufengmh.com/manhua/hongwu/");
-//        COMICS.put("花悸", "http://www.gufengmh.com/manhua/huaji/");
-//        COMICS.put("演平乱志", "http://www.gufengmh.com/manhua/yanpingluanzhi/");
-    }
-
     @Autowired
     public IndexController(ComicDao comicDao, CatalogDao catalogDao, ChapterDao chapterDao,
         ComicsConfig comicsConfig) {
@@ -173,31 +162,6 @@ public class IndexController {
         }
         Optional<Catalog> next = catalogDao.findTopByIdAfterAndComicIdOrderByIdAsc(id, catalog.get().getComicId());
         Optional<Catalog> prev = catalogDao.findTopByIdBeforeAndComicIdOrderByIdDesc(id, catalog.get().getComicId());
-//        List<Chapter> chapters = new ArrayList<>();
-//        try (WebClient webClient = getWebClient()) {
-//            HtmlPage chapterPage = webClient.getPage(catalog.get().getUrl());
-//            webClient.waitForBackgroundJavaScript(5000);
-//            Document chapter = Jsoup.parse(chapterPage.asXml());
-//            Element script = chapter.select("script").stream().filter(element -> {
-//                String content = element.outerHtml();
-//                return content.contains("CDATA") && content.contains("var chapterImages");
-//            }).findFirst().get();
-//            String[] chapterImages = StringUtils
-//                .trim(StringUtils.substringBetween(script.toString(), "chapterImages", ";")
-//                    .replaceAll("=", "").replaceAll("\\[", "").replaceAll("]", "").replaceAll("\"", "")).split(",");
-//            String chapterPath = StringUtils
-//                .trim(StringUtils.substringBetween(script.toString(), "chapterPath", ";").replaceAll("=", "")
-//                    .replaceAll("\"", ""));
-//            for (String chapterImage : chapterImages) {
-//                Chapter temp = new Chapter();
-//                temp.setUrl(IMAGE_URL + chapterPath + chapterImage);
-//                temp.setCatalogId(id);
-//                chapters.add(temp);
-//            }
-//            model.addAttribute("chapters", chapters);
-//        } catch (IOException ignored) {
-//        }
-
         model.addAttribute("chapters", chapterDao.findAllByCatalogId(catalog.get().getId()));
         next.ifPresent(catalog1 -> model.addAttribute("next", catalog1));
         prev.ifPresent(catalog1 -> model.addAttribute("prev", catalog1));
