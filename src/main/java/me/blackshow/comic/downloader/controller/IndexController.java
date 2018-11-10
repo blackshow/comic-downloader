@@ -2,8 +2,11 @@ package me.blackshow.comic.downloader.controller;
 
 import com.gargoylesoftware.htmlunit.BrowserVersion;
 import com.gargoylesoftware.htmlunit.WebClient;
+import com.gargoylesoftware.htmlunit.WebRequest;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
 import java.io.IOException;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -22,7 +25,11 @@ import org.apache.commons.lang3.StringUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.CollectionUtils;
@@ -33,6 +40,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 @Controller
 public class IndexController {
 
+    private static final Logger logger = LoggerFactory.getLogger(IndexController.class);
     private static final Map<String, String> COMICS = new HashMap<>();
     private static final String BASE_URL = "http://www.gufengmh.com";
     private static final String IMAGE_URL = "http://res.gufengmh.com/";
@@ -56,47 +64,81 @@ public class IndexController {
     }
 
     @PostConstruct
+    @Scheduled(cron = "0 0 0 * * ?")
     public void init() {
+
         COMICS.putAll(Arrays.stream(comicsConfig.getComics().split(" "))
             .collect(Collectors.toMap(key -> key.split("=")[0], value -> value.split("=")[1])));
+
+        // load comics and catalogs
+        COMICS.forEach((name, url) -> {
+            final Optional<Comic> comicOptional = comicDao.findByName(name);
+            Comic comic = new Comic();
+            try (WebClient webClient = getWebClient()) {
+                if (!comicOptional.isPresent()) {
+                    HtmlPage bookPage = getHtmlPage(webClient, url);
+                    if (bookPage == null) {
+                        return;
+                    }
+                    webClient.waitForBackgroundJavaScript(TIMEOUT);
+                    Document book = Jsoup.parse(bookPage.asXml());
+                    final Element coverImg = book.select("p.cover>img").first();
+                    comic.setName(name);
+                    comic.setUrl(url);
+                    comic.setThumbnail(coverImg.attr("src"));
+                    comic = comicDao.save(comic);
+                } else {
+                    comic = comicOptional.get();
+                }
+                HtmlPage catalogPage = getHtmlPage(webClient, comic.getUrl());
+                if (catalogPage == null) {
+                    return;
+                }
+                webClient.waitForBackgroundJavaScript(TIMEOUT);
+                Document catalog = Jsoup.parse(catalogPage.asXml());
+                Element ul = catalog.getElementById("chapter-list-1");
+                List<Catalog> catalogs = catalogDao.findAllByComicId(comic.getId());
+                Elements targetCatalogs = ul.children();
+                if (CollectionUtils.isEmpty(catalogs)) {
+                    Comic finalComic = comic;
+                    List<Catalog> catalogList = targetCatalogs.stream().map(li -> {
+                        Catalog temp = new Catalog();
+                        temp.setName(li.text());
+                        temp.setUrl(BASE_URL + li.select("a").first().attr("href"));
+                        temp.setComicId(finalComic.getId());
+                        return temp;
+                    }).collect(Collectors.toList());
+                    catalogDao.saveAll(catalogList);
+                } else if (catalogs.size() < targetCatalogs.size()) {
+                    for (int i = catalogs.size(); i < targetCatalogs.size(); i++) {
+                        Element li = targetCatalogs.get(i);
+                        Catalog temp = new Catalog();
+                        temp.setName(li.text());
+                        temp.setUrl(BASE_URL + li.select("a").first().attr("href"));
+                        temp.setComicId(comic.getId());
+                        catalogDao.save(temp);
+                    }
+                }
+            }
+        });
+
+        // load chapters
+
         COMICS.forEach((name, url) -> {
             final Runnable task = () -> {
                 final Optional<Comic> comicOptional = comicDao.findByName(name);
-                Comic comic;
-                try (WebClient webClient = getWebClient()) {
-                    if (!comicOptional.isPresent()) {
-                        comic = comicOptional.orElse(new Comic());
-                        HtmlPage bookPage = webClient.getPage(url);
-                        webClient.waitForBackgroundJavaScript(TIMEOUT);
-                        Document book = Jsoup.parse(bookPage.asXml());
-                        final Element coverImg = book.select("p.cover>img").first();
-                        comic.setName(name);
-                        comic.setUrl(url);
-                        comic.setThumbnail(coverImg.attr("src"));
-                        comic = comicDao.save(comic);
-                    } else {
-                        comic = comicOptional.get();
-                    }
-                    HtmlPage catalogPage = webClient.getPage(comic.getUrl());
-                    webClient.waitForBackgroundJavaScript(TIMEOUT);
-                    Document catalog = Jsoup.parse(catalogPage.asXml());
-                    Element ul = catalog.getElementById("chapter-list-1");
-                    List<Catalog> catalogs = catalogDao.findAllByComicId(comic.getId());
-                    if (CollectionUtils.isEmpty(catalogs) || catalogs.size() != ul.children().size()) {
-                        List<String> catalogUrls = catalogs.stream().map(Catalog::getName)
-                            .collect(Collectors.toList());
-                        for (int i = 0; i < ul.children().size(); i++) {
-                            Element li = ul.child(i);
-                            String catalogUrl = BASE_URL + li.select("a").first().attr("href");
-                            if (catalogUrls.contains(catalogUrl)) {
+                comicOptional.ifPresent(comic -> {
+                    try (WebClient webClient = getWebClient()) {
+                        List<Catalog> catalogs = catalogDao.findAllByComicId(comic.getId());
+                        for (Catalog catalog : catalogs) {
+                            List<Chapter> chapters = chapterDao.findAllByCatalogId(catalog.getId());
+                            if (!CollectionUtils.isEmpty(chapters)) {
                                 continue;
                             }
-                            Catalog temp = new Catalog();
-                            temp.setName(li.text());
-                            temp.setUrl(catalogUrl);
-                            temp.setComicId(comic.getId());
-                            temp = catalogDao.save(temp);
-                            HtmlPage chapterPage = webClient.getPage(temp.getUrl());
+                            HtmlPage chapterPage = getHtmlPage(webClient, catalog.getUrl());
+                            if (chapterPage == null) {
+                                continue;
+                            }
                             webClient.waitForBackgroundJavaScript(TIMEOUT);
                             Document chapter = Jsoup.parse(chapterPage.asXml());
                             Optional<Element> script = chapter.select("script").stream().filter(element -> {
@@ -105,28 +147,57 @@ public class IndexController {
                             }).findFirst();
                             if (script.isPresent()) {
                                 String[] chapterImages = StringUtils
-                                    .trim(StringUtils.substringBetween(script.get().toString(), "chapterImages", ";")
-                                        .replaceAll("=", "").replaceAll("\\[", "").replaceAll("]", "")
-                                        .replaceAll("\"", ""))
+                                    .trim(
+                                        StringUtils.substringBetween(script.get().toString(), "chapterImages", ";")
+                                            .replaceAll("=", "").replaceAll("\\[", "").replaceAll("]", "")
+                                            .replaceAll("\"", ""))
                                     .split(",");
                                 String chapterPath = StringUtils
                                     .trim(StringUtils.substringBetween(script.get().toString(), "chapterPath", ";")
                                         .replaceAll("=", "")
                                         .replaceAll("\"", ""));
+                                List<Chapter> chapterList = new ArrayList<>(chapterImages.length);
                                 for (String chapterImage : chapterImages) {
                                     Chapter tempChapter = new Chapter();
                                     tempChapter.setUrl(IMAGE_URL + chapterPath + chapterImage);
-                                    tempChapter.setCatalogId(temp.getId());
-                                    chapterDao.save(tempChapter);
+                                    tempChapter.setCatalogId(catalog.getId());
+                                    chapterList.add(tempChapter);
                                 }
+                                chapterDao.saveAll(chapterList);
                             }
                         }
                     }
-                } catch (IOException ignored) {
-                }
+                    logger.info(String.format("《%s》 load finish", comic.getName()));
+                });
             };
             new Thread(task).start();
         });
+    }
+
+    private HtmlPage getHtmlPage(WebClient webClient, String url) {
+        HtmlPage page = null;
+        String error = url + " connect error";
+        IOException cause = null;
+        for (int i = 0; i < 5; i++) {
+            try {
+                WebRequest webRequest = new WebRequest(new URL(url));
+                Map<String, String> httpHeaders = new HashMap<>();
+                httpHeaders.put("Connection", "Keep-Alive");
+                webRequest.setAdditionalHeaders(httpHeaders);
+                page = webClient.getPage(webRequest);
+                break;
+            } catch (IOException e) {
+                cause = e;
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException ignored) {
+                }
+            }
+        }
+        if (page == null) {
+            logger.error(error, cause);
+        }
+        return page;
     }
 
     private static WebClient getWebClient() {
@@ -151,6 +222,13 @@ public class IndexController {
         model.addAttribute("comics", allComics);
         return "index";
     }
+
+    @RequestMapping("/update")
+    public String updateIndex() {
+        init();
+        return "index";
+    }
+
 
     @GetMapping("/book/{name}")
     public String list(@PathVariable String name, Model model) {
