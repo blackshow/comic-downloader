@@ -10,12 +10,26 @@
 </head>
 <body>
 <div class="container text-center well">
+  <h1 th:text="${current.name}"></h1>
   <div class="row">
     <div th:each="catalog:${catalogs}" class="col-md-3">
-      <a th:href="@{'/chapter/'+ ${catalog.id}}" th:text="${catalog.name}" th:data="${catalog.lastRead}">
+      <a th:href="@{'/chapter/'+ ${catalog.id}}" th:text="${catalog.name}" class="btn"
+         th:classappend="${catalog.lastRead}?'btn-danger'">
       </a>
+      <a th:name="${catalog.id}" th:id="${catalog.id}"></a>
     </div>
   </div>
 </div>
 </body>
+<script th:inline="javascript">
+  /*<![CDATA[*/
+  var lastRead = [[${lastRead}]];
+  if (lastRead) {
+    document.getElementById(lastRead.id).scrollIntoView({
+      behavior: "smooth",
+      block: "center"
+    });
+  }
+  /*]]>*/
+</script>
 </html>

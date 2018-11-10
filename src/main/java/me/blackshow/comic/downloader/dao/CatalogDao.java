@@ -30,4 +30,6 @@ public interface CatalogDao extends JpaRepository<Catalog, Long> {
     @Modifying
     @Query(value = "update Catalog set lastRead = false where comicId = ?2 and id <> ?1")
     int revertOtherLastRead(@Param("id") Long id, @Param("comicId") Long comicId);
+
+    Optional<Catalog> findByLastReadAndComicId(Boolean lastRead, Long comicId);
 }

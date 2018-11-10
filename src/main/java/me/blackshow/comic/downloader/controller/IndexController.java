@@ -155,7 +155,12 @@ public class IndexController {
     @GetMapping("/book/{name}")
     public String list(@PathVariable String name, Model model) {
         Optional<Comic> comicOptional = comicDao.findByName(name);
-        comicOptional.ifPresent(comic -> model.addAttribute("catalogs", catalogDao.findAllByComicId(comic.getId())));
+        comicOptional.ifPresent(comic -> {
+            model.addAttribute("current", comic);
+            model.addAttribute("catalogs", catalogDao.findAllByComicId(comic.getId()));
+            Optional<Catalog> catalogOptional = catalogDao.findByLastReadAndComicId(true, comic.getId());
+            catalogOptional.ifPresent(catalog -> model.addAttribute("lastRead", catalog));
+        });
         return "list";
     }
 
@@ -166,11 +171,14 @@ public class IndexController {
             model.addAttribute("error", "没有此章节");
             return "chapter";
         }
+        model.addAttribute("catalog", catalog.get());
         Optional<Catalog> next = catalogDao.findTopByIdAfterAndComicIdOrderByIdAsc(id, catalog.get().getComicId());
         Optional<Catalog> prev = catalogDao.findTopByIdBeforeAndComicIdOrderByIdDesc(id, catalog.get().getComicId());
         model.addAttribute("chapters", chapterDao.findAllByCatalogId(catalog.get().getId()));
         next.ifPresent(catalog1 -> model.addAttribute("next", catalog1));
         prev.ifPresent(catalog1 -> model.addAttribute("prev", catalog1));
+        Optional<Comic> comicOptional = comicDao.findById(catalog.get().getComicId());
+        comicOptional.ifPresent(comic -> model.addAttribute("current", comic.getName()));
         catalogDao.markLastRead(id);
         catalogDao.revertOtherLastRead(id, catalog.get().getComicId());
         return "chapter";
