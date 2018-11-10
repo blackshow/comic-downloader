@@ -10,11 +10,10 @@
 </head>
 <body>
 <div class="container text-center well">
-  <a th:href="@{'/book/'+ ${current.name}}" class="btn btn-default" style="font-size: 20px;">
+  <a href="/" class="btn btn-default" style="font-size: 20px;">
     <span class="glyphicon glyphicon-eject" aria-hidden="true"></span>
     <span th:text="${current.name}"></span>
   </a>
-  <!--<h1 th:text="${current.name}" class="glyphicon glyphicon-eject" aria-hidden="true"></h1>-->
   <div class="row">
     <div th:each="catalog:${catalogs}" class="col-md-3">
       <a th:href="@{'/chapter/'+ ${catalog.id}}" th:text="${catalog.name}" class="btn"
