@@ -66,6 +66,7 @@ public class IndexController {
     @PostConstruct
     @Scheduled(cron = "0 0 0 * * ?")
     public void init() {
+        logger.info("comics data initializing... ");
 
         COMICS.putAll(Arrays.stream(comicsConfig.getComics().split(" "))
             .collect(Collectors.toMap(key -> key.split("=")[0], value -> value.split("=")[1])));
@@ -121,6 +122,8 @@ public class IndexController {
                 }
             }
         });
+
+        logger.info("Catalogs initialize has finished... ");
 
         // load chapters
 
